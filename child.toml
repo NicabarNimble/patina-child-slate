@@ -1,0 +1,28 @@
+[child]
+name = "slate-manager"
+version = "0.1.0"
+description = "Slate full-WIT child scaffold"
+kind = "child"
+role = "app"
+patina_min = "0.64.0"
+
+[child.ingress]
+mode = "hybrid"
+
+[child.contract]
+default = "patina:slate/control.list-specs"
+allow = [
+  "patina:slate/control.dispatch",
+  "patina:slate/control.list-specs",
+  "patina:slate/control.next-specs",
+  "patina:slate/control.check-spec",
+  "patina:slate/control.show-spec",
+  "patina:slate/control.prompt-spec",
+  "patina:slate/control.handoff-spec",
+  "patina:slate/control.packet-spec",
+  "patina:slate/control.complete-spec",
+  "patina:slate/control.archive-spec",
+]
+
+[needs]
+toys = ["logging", "measure", "git"]
