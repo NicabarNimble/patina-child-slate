@@ -3,3 +3,11 @@
 .DS_Store
 *.swp
 *.swo
+
+# Added by Patina for safety
+node_modules/
+.env
+.patina/local/
+*.db
+*.key
+*.pem
