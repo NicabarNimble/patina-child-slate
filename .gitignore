@@ -1,0 +1,5 @@
+/target/
+/src/bindings.rs
+.DS_Store
+*.swp
+*.swo
