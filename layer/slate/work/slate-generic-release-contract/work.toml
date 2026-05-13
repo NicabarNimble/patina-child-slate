@@ -1,7 +1,7 @@
 id = "slate-generic-release-contract"
 title = "Add generic slate release contract"
 kind = "build"
-status = "active"
+status = "complete"
 human_request = "Make Slate expose a language-agnostic release contract while project/tooling owns version mechanics."
 allium_anchors = [
   "layer/core/adapter-pattern.md",
@@ -15,11 +15,17 @@ allium_anchors = [
 user_alignment = "Matches the user's request to make the generic release model live without hard-coding Rust-only version mechanics."
 belief_refs = []
 proof_plan = [
-  "[ ] Slate work records can carry a generic release contract.",
-  "[ ] The schema exposes release contract fields without language-specific version mechanics.",
-  "[ ] Tests prove release contract parsing and set/remove behavior.",
+  "[x] Slate work records can carry a generic release contract.",
+  "[x] The schema exposes release contract fields without language-specific version mechanics.",
+  "[x] Tests prove release contract parsing and set/remove behavior.",
 ]
-closure_evidence = []
+closure_evidence = [
+  "Added `release_contract` to Slate work artifacts and WorkRecord output as JSON.",
+  "Schema now documents Slate ownership vs project/tooling ownership for release mechanics.",
+  "Set-work supports `release_contract:set` and `release_contract:remove` with bump type validation.",
+  "Tests cover language-agnostic schema visibility and set/remove API behavior.",
+  "Verified with fmt, clippy, tests, and cargo component build --release.",
+]
 blocked_by = []
 target = "4"
 implementation_plan = [
@@ -27,6 +33,7 @@ implementation_plan = [
   "Expose contract shape in schema and allow set/remove through set-work.",
   "Keep mutation/build/tag mechanics project-owned and language-agnostic.",
 ]
-belief_harvest_decision = "pending"
+belief_harvest_decision = "no new belief; captured generic release ownership model directly in Slate schema"
 created_at = "1778687504"
-updated_at = "1778687504"
+updated_at = "1778687790"
+closed_at = "1778687790"
