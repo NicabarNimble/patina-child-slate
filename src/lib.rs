@@ -92,6 +92,8 @@ struct SlateWorkFile {
     #[serde(default)]
     implementation_plan: Vec<String>,
     #[serde(default)]
+    release_contract: Option<SlateReleaseContract>,
+    #[serde(default)]
     belief_harvest_decision: Option<String>,
     #[serde(default)]
     created_at: Option<String>,
@@ -103,6 +105,22 @@ struct SlateWorkFile {
     block_reason: Option<String>,
     #[serde(default)]
     pause_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+struct SlateReleaseContract {
+    #[serde(default)]
+    bump_type: Option<String>,
+    #[serde(default)]
+    version_files: Vec<String>,
+    #[serde(default)]
+    changelog_updated: bool,
+    #[serde(default)]
+    release_tag: Option<String>,
+    #[serde(default)]
+    artifact_build_command: Option<String>,
+    #[serde(default)]
+    verification: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -819,6 +837,7 @@ fn set_work_field_schema() -> Vec<serde_json::Value> {
         serde_json::json!({"field": "proof_plan", "kind": "list<string>", "operations": list_ops}),
         serde_json::json!({"field": "implementation_plan", "kind": "list<string>", "operations": list_ops}),
         serde_json::json!({"field": "closure_evidence", "kind": "list<string>", "operations": list_ops}),
+        serde_json::json!({"field": "release_contract", "kind": "json<object>", "operations": optional_scalar_ops}),
         serde_json::json!({"field": "allium_anchor", "kind": "list<string>", "operations": list_ops, "aliases": ["allium_anchors", "allium-anchors"]}),
         serde_json::json!({"field": "belief_ref", "kind": "list<string>", "operations": list_ops, "aliases": ["belief_refs", "belief-refs"]}),
     ]
@@ -835,6 +854,7 @@ fn valid_set_work_fields() -> Vec<&'static str> {
         "proof_plan",
         "implementation_plan",
         "closure_evidence",
+        "release_contract",
         "allium_anchor",
         "belief_ref",
     ]
@@ -851,6 +871,7 @@ fn normalize_set_work_field(field: &str) -> Option<&'static str> {
         "proof_plan" | "proof-plan" => Some("proof_plan"),
         "implementation_plan" | "implementation-plan" => Some("implementation_plan"),
         "closure_evidence" | "closure-evidence" => Some("closure_evidence"),
+        "release_contract" | "release-contract" => Some("release_contract"),
         "allium_anchor" | "allium-anchor" | "allium_anchors" | "allium-anchors" => {
             Some("allium_anchor")
         }
@@ -1055,6 +1076,64 @@ fn apply_list_field(
     }
 }
 
+fn validate_release_contract(contract: &SlateReleaseContract) -> Result<(), String> {
+    if let Some(bump) = contract.bump_type.as_deref() {
+        if !matches!(bump, "patch" | "minor" | "major") {
+            return Err(format!(
+                "invalid release_contract.bump_type '{}': expected patch, minor, or major",
+                bump
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn parse_release_contract(value: &str) -> Result<SlateReleaseContract, String> {
+    let contract: SlateReleaseContract = serde_json::from_str(value).map_err(|error| {
+        format!(
+            "invalid release_contract JSON: {}. Expected object with optional bump_type, version_files, changelog_updated, release_tag, artifact_build_command, verification",
+            error
+        )
+    })?;
+    validate_release_contract(&contract)?;
+    Ok(contract)
+}
+
+fn apply_release_contract_field(
+    slot: &mut Option<SlateReleaseContract>,
+    operation: &SetWorkOperation,
+    value: String,
+) -> Result<(), String> {
+    match operation {
+        SetWorkOperation::Default | SetWorkOperation::Set => {
+            *slot = Some(parse_release_contract(&value)?);
+            Ok(())
+        }
+        SetWorkOperation::Remove => {
+            *slot = None;
+            Ok(())
+        }
+        SetWorkOperation::Add | SetWorkOperation::Update(_) => Err(
+            "operation not supported for release_contract; use release_contract:set or release_contract:remove"
+                .to_string(),
+        ),
+    }
+}
+
+fn release_contract_schema() -> serde_json::Value {
+    serde_json::json!({
+        "ownership": "Slate records the release contract; project/tooling owns language-specific version mutation, build, tag, and publishing mechanics.",
+        "fields": {
+            "bump_type": "optional patch|minor|major",
+            "version_files": "list of project-owned version metadata files (Cargo.toml, package.json, pom.xml, deps.edn, etc.)",
+            "changelog_updated": "bool evidence that release notes/changelog were updated",
+            "release_tag": "optional intended release tag such as v0.2.0",
+            "artifact_build_command": "optional project-owned build command proving artifacts",
+            "verification": "list of commands/evidence checked before release",
+        }
+    })
+}
+
 fn handle_schema() -> serde_json::Value {
     serde_json::json!({
         "work": {
@@ -1066,6 +1145,7 @@ fn handle_schema() -> serde_json::Value {
                 "<field>:remove",
                 "<field>:update:<one-based-index>",
             ],
+            "release_contract": release_contract_schema(),
             "transitions": [
                 {
                     "from": "draft",
@@ -2284,6 +2364,13 @@ fn slate_work_record(record: SlateWorkRecord) -> exports::patina::slate::control
         blocked_by: record.work.blocked_by,
         target: record.work.target,
         implementation_plan: record.work.implementation_plan,
+        release_contract_json: record
+            .work
+            .release_contract
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()
+            .unwrap_or(None),
         belief_harvest_decision: record.work.belief_harvest_decision,
         path: record.path,
     }
@@ -2572,6 +2659,7 @@ impl exports::patina::slate::control::Guest for SlateManager {
                 blocked_by: Vec::new(),
                 target: None,
                 implementation_plan: Vec::new(),
+                release_contract: None,
                 belief_harvest_decision: None,
                 created_at: None,
                 updated_at: None,
@@ -2649,6 +2737,11 @@ impl exports::patina::slate::control::Guest for SlateManager {
                         "closure_evidence" => apply_list_field(
                             "closure_evidence",
                             &mut work.closure_evidence,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "release_contract" => apply_release_contract_field(
+                            &mut work.release_contract,
                             &spec.operation,
                             req.value,
                         ),
@@ -3787,6 +3880,74 @@ mod slate_native_tests {
         assert!(err.contains("human_request"));
         assert!(err.contains("proof_plan"));
         assert!(err.contains("allium_anchors"));
+    }
+
+    #[test]
+    fn native_slate_release_contract_is_schema_visible_and_language_agnostic() {
+        let schema = handle_schema();
+        let release_contract = schema
+            .get("work")
+            .and_then(|work| work.get("release_contract"))
+            .expect("release contract schema");
+        assert!(release_contract
+            .get("ownership")
+            .and_then(|value| value.as_str())
+            .expect("ownership")
+            .contains("project/tooling owns language-specific"));
+        assert!(release_contract
+            .get("fields")
+            .and_then(|value| value.get("version_files"))
+            .and_then(|value| value.as_str())
+            .expect("version_files")
+            .contains("package.json"));
+    }
+
+    #[test]
+    fn native_slate_set_work_api_sets_and_removes_release_contract() {
+        let temp = temp_project();
+        let mut work = SlateWorkFile {
+            id: "demo".to_string(),
+            title: "Demo".to_string(),
+            kind: "build".to_string(),
+            status: "draft".to_string(),
+            human_request: "Release it".to_string(),
+            user_alignment: "User confirmed".to_string(),
+            ..Default::default()
+        };
+        create_slate_work_file(temp.path(), &mut work).expect("create work");
+        let project = Some(temp.path().to_string_lossy().to_string());
+
+        let contract = serde_json::json!({
+            "bump_type": "minor",
+            "version_files": ["Cargo.toml", "package.json"],
+            "changelog_updated": true,
+            "release_tag": "v0.2.0",
+            "artifact_build_command": "cargo component build --release",
+            "verification": ["cargo test --all-targets"]
+        });
+        let updated = <SlateManager as exports::patina::slate::control::Guest>::set_work(
+            exports::patina::slate::control::SetWorkRequest {
+                project: project.clone(),
+                id: "demo".to_string(),
+                field: "release-contract:set".to_string(),
+                value: contract.to_string(),
+            },
+        )
+        .expect("set release contract");
+        let release_contract_json = updated.release_contract_json.expect("contract json");
+        assert!(release_contract_json.contains("Cargo.toml"));
+        assert!(release_contract_json.contains("package.json"));
+
+        let updated = <SlateManager as exports::patina::slate::control::Guest>::set_work(
+            exports::patina::slate::control::SetWorkRequest {
+                project,
+                id: "demo".to_string(),
+                field: "release_contract:remove".to_string(),
+                value: String::new(),
+            },
+        )
+        .expect("remove release contract");
+        assert!(updated.release_contract_json.is_none());
     }
 }
 

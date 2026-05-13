@@ -140,6 +140,7 @@ interface control {
         blocked-by: list<string>,
         target: option<string>,
         implementation-plan: list<string>,
+        release-contract-json: option<string>,
         belief-harvest-decision: option<string>,
         path: string,
     }
