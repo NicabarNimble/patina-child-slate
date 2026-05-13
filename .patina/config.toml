@@ -4,8 +4,13 @@ created = "2026-05-12T21:09:04.167900+00:00"
 branch = "work"
 
 [interfaces]
-allowed = []
-default = ""
+allowed = [
+    "claude",
+    "opencode",
+    "gemini",
+    "pi",
+]
+default = "pi"
 
 [embeddings]
 model = "e5-base-v2"
