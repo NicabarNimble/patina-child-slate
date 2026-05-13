@@ -1,7 +1,7 @@
 id = "slate-release-units-contract"
 title = "Add ecosystem-aware release units"
 kind = "build"
-status = "active"
+status = "complete"
 human_request = "Refine the generic release contract so it identifies language/tooling ecosystems and supports monorepo release units."
 allium_anchors = [
   "layer/core/adapter-pattern.md",
@@ -15,12 +15,18 @@ allium_anchors = [
 user_alignment = "Addresses the user's concern that a loose generic contract is insufficient when projects can mix Rust, TypeScript/Node, Go, Java, Clojure, C, and custom tooling."
 belief_refs = []
 proof_plan = [
-  "[ ] Release contracts support multiple named release units.",
-  "[ ] Each release unit declares ecosystem and version strategy.",
-  "[ ] Validation rejects unsupported ecosystems/strategies and missing unit metadata.",
-  "[ ] Schema explains monorepo release-unit shape.",
+  "[x] Release contracts support multiple named release units.",
+  "[x] Each release unit declares ecosystem and version strategy.",
+  "[x] Validation rejects unsupported ecosystems/strategies and missing unit metadata.",
+  "[x] Schema explains monorepo release-unit shape.",
 ]
-closure_evidence = []
+closure_evidence = [
+  "Release contract now uses global release_tag/changelog_updated plus a units array.",
+  "Each unit declares name, ecosystem, version_strategy, optional bump_type, version_files, artifact_build_command, and verification.",
+  "Validation checks unit name, known ecosystems, known version strategies, bump type, and version files unless custom.",
+  "Schema includes mixed Rust/TypeScript/Go monorepo examples.",
+  "Verified with fmt, clippy, tests, and cargo component build --release.",
+]
 blocked_by = []
 target = "5"
 implementation_plan = [
@@ -28,6 +34,7 @@ implementation_plan = [
   "Add release unit validation for ecosystem and version strategy identity.",
   "Update schema and tests for mixed Rust/TypeScript/Go monorepo contracts.",
 ]
-belief_harvest_decision = "pending"
+belief_harvest_decision = "no new belief; refined generic release ownership into ecosystem-aware release units"
 created_at = "1778688058"
-updated_at = "1778688058"
+updated_at = "1778688327"
+closed_at = "1778688327"
