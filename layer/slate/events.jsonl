@@ -19,3 +19,4 @@
 {"work_id":"slate-ci-versioning-baseline","event_type":"archived","payload":{"force":false,"tag":"slate/slate-ci-versioning-baseline"},"created_at":"1778686608"}
 {"work_id":"slate-surface-schema","event_type":"archived","payload":{"force":false,"tag":"slate/slate-surface-schema"},"created_at":"1778686608"}
 {"work_id":"slate-editing-ops","event_type":"archived","payload":{"force":false,"tag":"slate/slate-editing-ops"},"created_at":"1778686608"}
+{"work_id":"slate-lifecycle-activation-ux","event_type":"archived","payload":{"force":false,"tag":"slate/slate-lifecycle-activation-ux"},"created_at":"1778686608"}
