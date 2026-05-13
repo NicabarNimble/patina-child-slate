@@ -1,0 +1,33 @@
+id = "slate-release-units-contract"
+title = "Add ecosystem-aware release units"
+kind = "build"
+status = "active"
+human_request = "Refine the generic release contract so it identifies language/tooling ecosystems and supports monorepo release units."
+allium_anchors = [
+  "layer/core/adapter-pattern.md",
+  "layer/core/dependable-rust.md",
+  "layer/core/oxidized-knowledge.md",
+  "layer/core/safety-boundaries.md",
+  "layer/core/session-capture.md",
+  "layer/core/spec-driven-design.md",
+  "layer/core/unix-philosophy.md",
+]
+user_alignment = "Addresses the user's concern that a loose generic contract is insufficient when projects can mix Rust, TypeScript/Node, Go, Java, Clojure, C, and custom tooling."
+belief_refs = []
+proof_plan = [
+  "[ ] Release contracts support multiple named release units.",
+  "[ ] Each release unit declares ecosystem and version strategy.",
+  "[ ] Validation rejects unsupported ecosystems/strategies and missing unit metadata.",
+  "[ ] Schema explains monorepo release-unit shape.",
+]
+closure_evidence = []
+blocked_by = []
+target = "5"
+implementation_plan = [
+  "Replace the flat contract with a release_tag plus units array while preserving Slate as recorder, not mutator.",
+  "Add release unit validation for ecosystem and version strategy identity.",
+  "Update schema and tests for mixed Rust/TypeScript/Go monorepo contracts.",
+]
+belief_harvest_decision = "pending"
+created_at = "1778688058"
+updated_at = "1778688058"

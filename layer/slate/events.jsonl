@@ -22,3 +22,4 @@
 {"work_id":"slate-lifecycle-activation-ux","event_type":"archived","payload":{"force":false,"tag":"slate/slate-lifecycle-activation-ux"},"created_at":"1778686608"}
 {"work_id":"slate-generic-release-contract","event_type":"created","payload":{"status":"active"},"created_at":"1778687504"}
 {"work_id":"slate-generic-release-contract","event_type":"completed","payload":{"proof_plan_checked":3,"closure_evidence_added":5,"belief_harvest_decision":"no new belief"},"created_at":"1778687790"}
+{"work_id":"slate-release-units-contract","event_type":"created","payload":{"status":"active"},"created_at":"1778688058"}
