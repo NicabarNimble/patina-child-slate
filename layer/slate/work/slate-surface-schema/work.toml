@@ -1,7 +1,7 @@
 id = "slate-surface-schema"
 title = "Add slate schema and actionable errors"
 kind = "build"
-status = "active"
+status = "complete"
 human_request = "Improve slate discoverability with schema output and actionable validation errors"
 allium_anchors = ["layer/surface/slate-manager-work-commit-list.md"]
 user_alignment = "Directly addresses usability feedback from first external child usage."
@@ -22,6 +22,7 @@ implementation_plan = [
   "Add a discoverable schema surface for mutable fields and lifecycle gates.",
   "Harden validation errors so they suggest valid fields/values and examples.",
 ]
-belief_harvest_decision = "pending"
+belief_harvest_decision = "no new belief; reinforced schema/discoverability should be part of the command surface for agent-facing tooling"
 created_at = "1778624325"
-updated_at = "1778668801"
+updated_at = "1778685333"
+closed_at = "1778685333"

@@ -1,7 +1,7 @@
 id = "slate-ci-versioning-baseline"
 title = "Add simple CI and release/versioning baseline"
 kind = "build"
-status = "active"
+status = "complete"
 human_request = "Set up straightforward CI checks and release-oriented versioning docs for standalone child repo"
 allium_anchors = ["layer/surface/slate-manager-work-commit-list.md"]
 user_alignment = "Supports independent delivery cadence now that slate-manager is split from monorepo."
@@ -24,6 +24,7 @@ implementation_plan = [
   "Add release workflow for tag-driven wasm build artifact publishing.",
   "Document versioning/release policy and changelog usage.",
 ]
-belief_harvest_decision = "pending"
+belief_harvest_decision = "no new belief; reinforced standalone child repos need tiered CI, release notes, and reproducible build artifacts"
 created_at = "1778624325"
-updated_at = "1778624450"
+updated_at = "1778685333"
+closed_at = "1778685333"
