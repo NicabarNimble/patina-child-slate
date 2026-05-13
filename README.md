@@ -25,6 +25,27 @@ The component is written to:
 target/wasm32-wasip1/release/patina_ai_child_slate_manager.wasm
 ```
 
+## CI
+
+Tiered checks now run by stage:
+
+- **Local pre-commit (Tier 0)**: `scripts/ci-tier0.sh` (`fmt` + `clippy`)
+- **Push CI** (`.github/workflows/ci.yml`): Tier 1 + Tier 2 (`fmt`, `clippy`, `test`)
+- **PR to main/master** (`.github/workflows/pr-main.yml`): Tier 1 + Tier 2 + Tier 3 (`fmt`, `clippy`, `test`, component build)
+
+Enable the local pre-commit hook once per clone:
+
+```bash
+scripts/install-hooks.sh
+```
+
+## Versioning & releases
+
+- This repo follows SemVer.
+- Tag releases as `vX.Y.Z`.
+- Tag pushes trigger release asset publishing (`.wasm` + `.sha256`).
+- See [`RELEASING.md`](RELEASING.md) and [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Install into Patina
 
 From this repository:

@@ -1,0 +1,23 @@
+id = "slate-editing-ops"
+title = "Add first-class slate edit operations"
+kind = "build"
+status = "draft"
+human_request = "Support set/add/remove semantics and structured list editing for slate work fields"
+allium_anchors = ["layer/surface/slate-manager-work-commit-list.md"]
+user_alignment = "Reduces manual TOML edits and duplicate checklist blobs during normal slate workflows."
+belief_refs = []
+proof_plan = [
+  "[ ] CLI/API supports set/add/remove operations for mutable fields.",
+  "[ ] `human_request` and `allium_anchors` can be edited without manual file edits.",
+  "[ ] List updates are item-level (no accidental duplicate blob appends).",
+]
+closure_evidence = []
+blocked_by = ["slate-surface-schema"]
+target = "2"
+implementation_plan = [
+  "Define a clear edit contract for scalar and list fields.",
+  "Implement replace/add/remove semantics with validation and helpful errors.",
+]
+belief_harvest_decision = "pending"
+created_at = "1778624325"
+updated_at = "1778624325"

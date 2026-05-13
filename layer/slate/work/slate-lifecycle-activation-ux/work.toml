@@ -1,0 +1,23 @@
+id = "slate-lifecycle-activation-ux"
+title = "Clarify slate lifecycle transitions"
+kind = "build"
+status = "draft"
+human_request = "Add explicit activate UX and clearer promotion/validation messaging"
+allium_anchors = ["layer/surface/slate-manager-work-commit-list.md"]
+user_alignment = "Makes draft/ready/active behavior obvious for external child users."
+belief_refs = []
+proof_plan = [
+  "[ ] A single explicit activation path exists (e.g. `activate` command).",
+  "[ ] Transition output clearly shows current and next states.",
+  "[ ] Validation failures report missing gates in actionable form.",
+]
+closure_evidence = []
+blocked_by = ["slate-surface-schema"]
+target = "3"
+implementation_plan = [
+  "Add explicit lifecycle transition affordances in command/API surface.",
+  "Improve transition and gate diagnostics for users.",
+]
+belief_harvest_decision = "pending"
+created_at = "1778624325"
+updated_at = "1778624325"

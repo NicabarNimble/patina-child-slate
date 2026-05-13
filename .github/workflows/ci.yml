@@ -1,0 +1,50 @@
+name: CI (push)
+
+on:
+  push:
+    tags-ignore:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  tier-1-style-and-lint:
+    name: Tier 1 — style + lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  tier-2-tests:
+    name: Tier 2 — tests
+    runs-on: ubuntu-latest
+    needs: [tier-1-style-and-lint]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --all-targets

@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-component
+        run: cargo install cargo-component --locked
+
+      - name: Build release component
+        run: cargo component build --release
+
+      - name: Compute checksum
+        run: |
+          sha256sum target/wasm32-wasip1/release/patina_ai_child_slate_manager.wasm > target/wasm32-wasip1/release/patina_ai_child_slate_manager.wasm.sha256
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/wasm32-wasip1/release/patina_ai_child_slate_manager.wasm
+            target/wasm32-wasip1/release/patina_ai_child_slate_manager.wasm.sha256

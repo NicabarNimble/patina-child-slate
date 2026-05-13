@@ -1,0 +1,29 @@
+id = "slate-ci-versioning-baseline"
+title = "Add simple CI and release/versioning baseline"
+kind = "build"
+status = "active"
+human_request = "Set up straightforward CI checks and release-oriented versioning docs for standalone child repo"
+allium_anchors = ["layer/surface/slate-manager-work-commit-list.md"]
+user_alignment = "Supports independent delivery cadence now that slate-manager is split from monorepo."
+belief_refs = []
+proof_plan = [
+  "[x] CI runs fmt, clippy, tests, and component build on pull requests.",
+  "[x] A simple release workflow publishes the built wasm artifact for version tags.",
+  "[x] Repo documents semver/release expectations for standalone operation.",
+]
+closure_evidence = [
+  "Added .github/workflows/ci.yml with fmt/clippy/test/component build gates.",
+  "Added .github/workflows/release.yml to publish wasm + sha256 on v* tags.",
+  "Added RELEASING.md and CHANGELOG.md for standalone semver/release process.",
+  "Verified locally: cargo fmt --check; cargo clippy --all-targets --all-features -- -D warnings; cargo test --all-targets; cargo component build --release.",
+]
+blocked_by = []
+target = "0"
+implementation_plan = [
+  "Add GitHub Actions CI workflow for core Rust and component checks.",
+  "Add release workflow for tag-driven wasm build artifact publishing.",
+  "Document versioning/release policy and changelog usage.",
+]
+belief_harvest_decision = "pending"
+created_at = "1778624325"
+updated_at = "1778624450"

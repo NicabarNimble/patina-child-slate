@@ -713,6 +713,98 @@ fn validate_ready_gate(work: &SlateWorkFile) -> Result<(), String> {
     Ok(())
 }
 
+fn set_work_field_schema() -> Vec<serde_json::Value> {
+    vec![
+        serde_json::json!({"field": "title", "kind": "string", "mode": "replace"}),
+        serde_json::json!({"field": "status", "kind": "string", "mode": "replace"}),
+        serde_json::json!({"field": "target", "kind": "string", "mode": "replace"}),
+        serde_json::json!({"field": "user_alignment", "kind": "string", "mode": "replace"}),
+        serde_json::json!({"field": "belief_harvest_decision", "kind": "string", "mode": "replace"}),
+        serde_json::json!({"field": "proof_plan", "kind": "list<string>", "mode": "append"}),
+        serde_json::json!({"field": "implementation_plan", "kind": "list<string>", "mode": "append"}),
+        serde_json::json!({"field": "closure_evidence", "kind": "list<string>", "mode": "append"}),
+        serde_json::json!({"field": "allium_anchor", "kind": "list<string>", "mode": "append", "aliases": ["allium_anchors", "allium-anchors"]}),
+        serde_json::json!({"field": "belief_ref", "kind": "list<string>", "mode": "append", "aliases": ["belief_refs", "belief-refs"]}),
+    ]
+}
+
+fn valid_set_work_fields() -> Vec<&'static str> {
+    vec![
+        "title",
+        "status",
+        "target",
+        "user_alignment",
+        "belief_harvest_decision",
+        "proof_plan",
+        "implementation_plan",
+        "closure_evidence",
+        "allium_anchor",
+        "belief_ref",
+    ]
+}
+
+fn normalize_set_work_field(field: &str) -> Option<&'static str> {
+    match field {
+        "title" => Some("title"),
+        "status" => Some("status"),
+        "target" => Some("target"),
+        "user_alignment" => Some("user_alignment"),
+        "belief_harvest_decision" => Some("belief_harvest_decision"),
+        "proof_plan" => Some("proof_plan"),
+        "implementation_plan" => Some("implementation_plan"),
+        "closure_evidence" => Some("closure_evidence"),
+        "allium_anchor" | "allium_anchors" | "allium-anchors" => Some("allium_anchor"),
+        "belief_ref" | "belief_refs" | "belief-refs" => Some("belief_ref"),
+        _ => None,
+    }
+}
+
+fn unsupported_set_work_field_error(field: &str) -> String {
+    let valid = valid_set_work_fields().join(", ");
+    format!(
+        "unsupported Slate field '{}'. Valid fields: {}. Example: set field='proof_plan' value='[ ] observable proof criterion'",
+        field, valid
+    )
+}
+
+fn handle_schema() -> serde_json::Value {
+    serde_json::json!({
+        "work": {
+            "mutable_fields": set_work_field_schema(),
+            "transitions": [
+                {
+                    "from": "draft",
+                    "to": "ready",
+                    "command": "promote-work",
+                    "gates": [
+                        "kind present",
+                        "human_request present",
+                        "user_alignment present",
+                        "proof_plan non-empty",
+                        "allium_anchors present OR refactor includes no-behavior rationale",
+                    ],
+                },
+                {
+                    "from": "ready",
+                    "to": "active",
+                    "command": "promote-work",
+                    "gates": ["none"],
+                },
+                {
+                    "from": "active",
+                    "to": "complete",
+                    "command": "complete-work",
+                    "gates": [
+                        "proof_plan fully checked",
+                        "closure_evidence present",
+                        "belief_harvest_decision present",
+                    ],
+                }
+            ]
+        }
+    })
+}
+
 fn load_slate_events(root: &Path, id: &str) -> Result<Vec<serde_json::Value>, String> {
     let path = root.join(SLATE_EVENTS_PATH);
     if !path.exists() {
@@ -1803,6 +1895,7 @@ fn dispatch_data_from_envelope(
         "packet" => handle_packet(&project_root, args),
         "complete" => handle_complete(&project_root, args),
         "archive" => handle_archive(&project_root, args),
+        "schema" => Ok(handle_schema()),
         _ => Ok(serde_json::json!({
             "status": "scaffold",
             "message": format!("command '{}' not implemented", command),
@@ -2196,7 +2289,9 @@ impl exports::patina::slate::control::Guest for SlateManager {
                 "set",
                 serde_json::json!({"field": req.field, "value": req.value}),
                 |work| {
-                    match req.field.as_str() {
+                    let normalized = normalize_set_work_field(&req.field)
+                        .ok_or_else(|| unsupported_set_work_field_error(&req.field))?;
+                    match normalized {
                         "title" => work.title = req.value,
                         "status" => work.status = req.value,
                         "target" => work.target = Some(req.value),
@@ -2207,7 +2302,7 @@ impl exports::patina::slate::control::Guest for SlateManager {
                         "closure_evidence" => work.closure_evidence.push(req.value),
                         "allium_anchor" => work.allium_anchors.push(req.value),
                         "belief_ref" => work.belief_refs.push(req.value),
-                        other => return Err(format!("unsupported Slate field '{}'", other)),
+                        _ => return Err(unsupported_set_work_field_error(&req.field)),
                     }
                     Ok(())
                 },
@@ -3182,6 +3277,34 @@ mod slate_native_tests {
         };
         let err = validate_complete_gate(&incomplete).expect_err("missing closure should block");
         assert!(err.contains("closure evidence"));
+    }
+
+    #[test]
+    fn native_slate_set_work_field_schema_and_aliases_are_discoverable() {
+        let schema = handle_schema();
+        let fields = schema
+            .get("work")
+            .and_then(|work| work.get("mutable_fields"))
+            .and_then(|value| value.as_array())
+            .expect("schema mutable_fields");
+        assert!(fields.iter().any(|f| {
+            f.get("field").and_then(|v| v.as_str()) == Some("allium_anchor")
+                && f.get("aliases").is_some()
+        }));
+
+        assert_eq!(
+            normalize_set_work_field("allium_anchors"),
+            Some("allium_anchor")
+        );
+        assert_eq!(normalize_set_work_field("belief_refs"), Some("belief_ref"));
+    }
+
+    #[test]
+    fn native_slate_set_work_invalid_field_error_is_actionable() {
+        let err = unsupported_set_work_field_error("allium_anchorz");
+        assert!(err.contains("Valid fields:"));
+        assert!(err.contains("Example:"));
+        assert!(err.contains("proof_plan"));
     }
 }
 
