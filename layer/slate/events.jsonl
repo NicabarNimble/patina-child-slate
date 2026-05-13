@@ -16,3 +16,4 @@
 {"work_id":"slate-lifecycle-activation-ux","event_type":"promoted","payload":{"from":"draft","to":"ready","force":false,"anchors":"all core values read before code"},"created_at":"1778685333"}
 {"work_id":"slate-lifecycle-activation-ux","event_type":"promoted","payload":{"from":"ready","to":"active","force":false},"created_at":"1778685333"}
 {"work_id":"slate-lifecycle-activation-ux","event_type":"completed","payload":{"proof_plan_checked":3,"closure_evidence_added":5,"belief_harvest_decision":"no new belief"},"created_at":"1778685764"}
+{"work_id":"slate-ci-versioning-baseline","event_type":"archived","payload":{"force":false,"tag":"slate/slate-ci-versioning-baseline"},"created_at":"1778686608"}
