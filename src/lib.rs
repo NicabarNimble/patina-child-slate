@@ -714,17 +714,22 @@ fn validate_ready_gate(work: &SlateWorkFile) -> Result<(), String> {
 }
 
 fn set_work_field_schema() -> Vec<serde_json::Value> {
+    let scalar_ops = ["set"];
+    let optional_scalar_ops = ["set", "remove"];
+    let list_ops = ["set", "add", "remove", "update:<one-based-index>"];
+
     vec![
-        serde_json::json!({"field": "title", "kind": "string", "mode": "replace"}),
-        serde_json::json!({"field": "status", "kind": "string", "mode": "replace"}),
-        serde_json::json!({"field": "target", "kind": "string", "mode": "replace"}),
-        serde_json::json!({"field": "user_alignment", "kind": "string", "mode": "replace"}),
-        serde_json::json!({"field": "belief_harvest_decision", "kind": "string", "mode": "replace"}),
-        serde_json::json!({"field": "proof_plan", "kind": "list<string>", "mode": "append"}),
-        serde_json::json!({"field": "implementation_plan", "kind": "list<string>", "mode": "append"}),
-        serde_json::json!({"field": "closure_evidence", "kind": "list<string>", "mode": "append"}),
-        serde_json::json!({"field": "allium_anchor", "kind": "list<string>", "mode": "append", "aliases": ["allium_anchors", "allium-anchors"]}),
-        serde_json::json!({"field": "belief_ref", "kind": "list<string>", "mode": "append", "aliases": ["belief_refs", "belief-refs"]}),
+        serde_json::json!({"field": "title", "kind": "string", "operations": scalar_ops}),
+        serde_json::json!({"field": "status", "kind": "string", "operations": scalar_ops}),
+        serde_json::json!({"field": "human_request", "kind": "string", "operations": scalar_ops}),
+        serde_json::json!({"field": "target", "kind": "option<string>", "operations": optional_scalar_ops}),
+        serde_json::json!({"field": "user_alignment", "kind": "string", "operations": scalar_ops}),
+        serde_json::json!({"field": "belief_harvest_decision", "kind": "option<string>", "operations": optional_scalar_ops}),
+        serde_json::json!({"field": "proof_plan", "kind": "list<string>", "operations": list_ops}),
+        serde_json::json!({"field": "implementation_plan", "kind": "list<string>", "operations": list_ops}),
+        serde_json::json!({"field": "closure_evidence", "kind": "list<string>", "operations": list_ops}),
+        serde_json::json!({"field": "allium_anchor", "kind": "list<string>", "operations": list_ops, "aliases": ["allium_anchors", "allium-anchors"]}),
+        serde_json::json!({"field": "belief_ref", "kind": "list<string>", "operations": list_ops, "aliases": ["belief_refs", "belief-refs"]}),
     ]
 }
 
@@ -732,6 +737,7 @@ fn valid_set_work_fields() -> Vec<&'static str> {
     vec![
         "title",
         "status",
+        "human_request",
         "target",
         "user_alignment",
         "belief_harvest_decision",
@@ -747,30 +753,228 @@ fn normalize_set_work_field(field: &str) -> Option<&'static str> {
     match field {
         "title" => Some("title"),
         "status" => Some("status"),
+        "human_request" | "human-request" => Some("human_request"),
         "target" => Some("target"),
-        "user_alignment" => Some("user_alignment"),
-        "belief_harvest_decision" => Some("belief_harvest_decision"),
-        "proof_plan" => Some("proof_plan"),
-        "implementation_plan" => Some("implementation_plan"),
-        "closure_evidence" => Some("closure_evidence"),
-        "allium_anchor" | "allium_anchors" | "allium-anchors" => Some("allium_anchor"),
-        "belief_ref" | "belief_refs" | "belief-refs" => Some("belief_ref"),
+        "user_alignment" | "user-alignment" => Some("user_alignment"),
+        "belief_harvest_decision" | "belief-harvest-decision" => Some("belief_harvest_decision"),
+        "proof_plan" | "proof-plan" => Some("proof_plan"),
+        "implementation_plan" | "implementation-plan" => Some("implementation_plan"),
+        "closure_evidence" | "closure-evidence" => Some("closure_evidence"),
+        "allium_anchor" | "allium-anchor" | "allium_anchors" | "allium-anchors" => {
+            Some("allium_anchor")
+        }
+        "belief_ref" | "belief-ref" | "belief_refs" | "belief-refs" => Some("belief_ref"),
         _ => None,
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SetWorkOperation {
+    Default,
+    Set,
+    Add,
+    Remove,
+    Update(usize),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SetWorkFieldSpec {
+    field: &'static str,
+    operation: SetWorkOperation,
+}
+
+fn parse_set_work_field_spec(raw_field: &str) -> Result<SetWorkFieldSpec, String> {
+    let mut parts = raw_field.split(':');
+    let base = parts.next().unwrap_or_default();
+    let operation = parts.next();
+    let index = parts.next();
+    if parts.next().is_some() {
+        return Err(format!(
+            "invalid Slate field operation '{}'. Use '<field>', '<field>:set', '<field>:add', '<field>:remove', or '<field>:update:<index>'",
+            raw_field
+        ));
+    }
+
+    let field =
+        normalize_set_work_field(base).ok_or_else(|| unsupported_set_work_field_error(base))?;
+    let operation = match operation {
+        None => SetWorkOperation::Default,
+        Some("set" | "replace") => SetWorkOperation::Set,
+        Some("add" | "append") => SetWorkOperation::Add,
+        Some("remove" | "delete") => SetWorkOperation::Remove,
+        Some("update") => {
+            let raw_index = index.ok_or_else(|| {
+                format!(
+                    "missing update index for '{}'. Example: field='proof_plan:update:1' value='[x] cargo test'",
+                    raw_field
+                )
+            })?;
+            let parsed = raw_index.parse::<usize>().map_err(|_| {
+                format!(
+                    "invalid update index '{}' for '{}': use a one-based integer",
+                    raw_index, raw_field
+                )
+            })?;
+            if parsed == 0 {
+                return Err(format!(
+                    "invalid update index '{}' for '{}': indexes are one-based",
+                    raw_index, raw_field
+                ));
+            }
+            SetWorkOperation::Update(parsed)
+        }
+        Some(other) => {
+            return Err(format!(
+                "unsupported Slate field operation '{}'. Valid operations: set, add, remove, update:<index>",
+                other
+            ))
+        }
+    };
+
+    Ok(SetWorkFieldSpec { field, operation })
 }
 
 fn unsupported_set_work_field_error(field: &str) -> String {
     let valid = valid_set_work_fields().join(", ");
     format!(
-        "unsupported Slate field '{}'. Valid fields: {}. Example: set field='proof_plan' value='[ ] observable proof criterion'",
+        "unsupported Slate field '{}'. Valid fields: {}. Examples: field='proof_plan:add' value='[ ] observable proof criterion'; field='allium_anchors:set' value='[\"layer/core/spec-driven-design.md\"]'",
         field, valid
     )
+}
+
+fn parse_list_items(value: &str) -> Vec<String> {
+    if let Ok(items) = serde_json::from_str::<Vec<String>>(value) {
+        return items
+            .into_iter()
+            .map(|item| item.trim().to_string())
+            .filter(|item| !item.is_empty())
+            .collect();
+    }
+
+    let lines = value
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+    if lines.is_empty() && !value.trim().is_empty() {
+        vec![value.trim().to_string()]
+    } else {
+        lines
+    }
+}
+
+fn apply_required_string_field(
+    field: &str,
+    slot: &mut String,
+    operation: &SetWorkOperation,
+    value: String,
+) -> Result<(), String> {
+    match operation {
+        SetWorkOperation::Default | SetWorkOperation::Set => {
+            *slot = value;
+            Ok(())
+        }
+        SetWorkOperation::Remove => Err(format!(
+            "cannot remove required Slate field '{}'; use '{}:set' with a replacement value",
+            field, field
+        )),
+        SetWorkOperation::Add | SetWorkOperation::Update(_) => Err(format!(
+            "operation not supported for scalar Slate field '{}'; use '{}:set'",
+            field, field
+        )),
+    }
+}
+
+fn apply_optional_string_field(
+    field: &str,
+    slot: &mut Option<String>,
+    operation: &SetWorkOperation,
+    value: String,
+) -> Result<(), String> {
+    match operation {
+        SetWorkOperation::Default | SetWorkOperation::Set => {
+            *slot = Some(value);
+            Ok(())
+        }
+        SetWorkOperation::Remove => {
+            *slot = None;
+            Ok(())
+        }
+        SetWorkOperation::Add | SetWorkOperation::Update(_) => Err(format!(
+            "operation not supported for optional scalar Slate field '{}'; use '{}:set' or '{}:remove'",
+            field, field, field
+        )),
+    }
+}
+
+fn remove_list_items(field: &str, slot: &mut Vec<String>, value: &str) -> Result<(), String> {
+    if let Ok(index) = value.trim().parse::<usize>() {
+        if index == 0 || index > slot.len() {
+            return Err(format!(
+                "cannot remove {} item {}: valid range is 1..={}",
+                field,
+                index,
+                slot.len()
+            ));
+        }
+        slot.remove(index - 1);
+        return Ok(());
+    }
+
+    let removals = parse_list_items(value);
+    let before = slot.len();
+    slot.retain(|item| !removals.iter().any(|remove| item.trim() == remove.trim()));
+    if slot.len() == before {
+        return Err(format!(
+            "no {} items matched removal value. Use an exact value or one-based index",
+            field
+        ));
+    }
+    Ok(())
+}
+
+fn apply_list_field(
+    field: &str,
+    slot: &mut Vec<String>,
+    operation: &SetWorkOperation,
+    value: String,
+) -> Result<(), String> {
+    match operation {
+        SetWorkOperation::Default | SetWorkOperation::Add => {
+            slot.extend(parse_list_items(&value));
+            Ok(())
+        }
+        SetWorkOperation::Set => {
+            *slot = parse_list_items(&value);
+            Ok(())
+        }
+        SetWorkOperation::Remove => remove_list_items(field, slot, &value),
+        SetWorkOperation::Update(index) => {
+            if *index > slot.len() {
+                return Err(format!(
+                    "cannot update {} item {}: valid range is 1..={}",
+                    field,
+                    index,
+                    slot.len()
+                ));
+            }
+            slot[*index - 1] = value.trim().to_string();
+            Ok(())
+        }
+    }
 }
 
 fn handle_schema() -> serde_json::Value {
     serde_json::json!({
         "work": {
             "mutable_fields": set_work_field_schema(),
+            "set_work_field_syntax": [
+                "<field> (back-compatible default: scalar set, list add)",
+                "<field>:set",
+                "<field>:add",
+                "<field>:remove",
+                "<field>:update:<one-based-index>",
+            ],
             "transitions": [
                 {
                     "from": "draft",
@@ -2283,28 +2487,84 @@ impl exports::patina::slate::control::Guest for SlateManager {
     ) -> Result<exports::patina::slate::control::WorkRecord, String> {
         let project_root = resolve_project_root_from_hint(req.project.as_deref())?;
         with_project_root_cwd(&project_root, || {
+            let field = req.field.clone();
+            let value = req.value.clone();
             update_slate_work(
                 &project_root,
                 &req.id,
                 "set",
-                serde_json::json!({"field": req.field, "value": req.value}),
+                serde_json::json!({"field": field, "value": value}),
                 |work| {
-                    let normalized = normalize_set_work_field(&req.field)
-                        .ok_or_else(|| unsupported_set_work_field_error(&req.field))?;
-                    match normalized {
-                        "title" => work.title = req.value,
-                        "status" => work.status = req.value,
-                        "target" => work.target = Some(req.value),
-                        "user_alignment" => work.user_alignment = req.value,
-                        "belief_harvest_decision" => work.belief_harvest_decision = Some(req.value),
-                        "proof_plan" => work.proof_plan.push(req.value),
-                        "implementation_plan" => work.implementation_plan.push(req.value),
-                        "closure_evidence" => work.closure_evidence.push(req.value),
-                        "allium_anchor" => work.allium_anchors.push(req.value),
-                        "belief_ref" => work.belief_refs.push(req.value),
-                        _ => return Err(unsupported_set_work_field_error(&req.field)),
+                    let spec = parse_set_work_field_spec(&req.field)?;
+                    match spec.field {
+                        "title" => apply_required_string_field(
+                            "title",
+                            &mut work.title,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "status" => apply_required_string_field(
+                            "status",
+                            &mut work.status,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "human_request" => apply_required_string_field(
+                            "human_request",
+                            &mut work.human_request,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "target" => apply_optional_string_field(
+                            "target",
+                            &mut work.target,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "user_alignment" => apply_required_string_field(
+                            "user_alignment",
+                            &mut work.user_alignment,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "belief_harvest_decision" => apply_optional_string_field(
+                            "belief_harvest_decision",
+                            &mut work.belief_harvest_decision,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "proof_plan" => apply_list_field(
+                            "proof_plan",
+                            &mut work.proof_plan,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "implementation_plan" => apply_list_field(
+                            "implementation_plan",
+                            &mut work.implementation_plan,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "closure_evidence" => apply_list_field(
+                            "closure_evidence",
+                            &mut work.closure_evidence,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "allium_anchor" => apply_list_field(
+                            "allium_anchors",
+                            &mut work.allium_anchors,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        "belief_ref" => apply_list_field(
+                            "belief_refs",
+                            &mut work.belief_refs,
+                            &spec.operation,
+                            req.value,
+                        ),
+                        _ => Err(unsupported_set_work_field_error(&req.field)),
                     }
-                    Ok(())
                 },
             )
             .map(slate_work_record)
@@ -3303,8 +3563,51 @@ mod slate_native_tests {
     fn native_slate_set_work_invalid_field_error_is_actionable() {
         let err = unsupported_set_work_field_error("allium_anchorz");
         assert!(err.contains("Valid fields:"));
-        assert!(err.contains("Example:"));
+        assert!(err.contains("Examples:"));
         assert!(err.contains("proof_plan"));
+    }
+
+    #[test]
+    fn native_slate_set_work_parses_operations_and_mutates_lists() {
+        assert_eq!(
+            parse_set_work_field_spec("proof_plan:update:2").expect("field spec"),
+            SetWorkFieldSpec {
+                field: "proof_plan",
+                operation: SetWorkOperation::Update(2),
+            }
+        );
+        assert_eq!(
+            normalize_set_work_field("human-request"),
+            Some("human_request")
+        );
+
+        let mut items = vec!["[ ] first".to_string(), "[ ] second".to_string()];
+        apply_list_field(
+            "proof_plan",
+            &mut items,
+            &SetWorkOperation::Update(2),
+            "[x] second".to_string(),
+        )
+        .expect("update item");
+        assert_eq!(items[1], "[x] second");
+
+        apply_list_field(
+            "proof_plan",
+            &mut items,
+            &SetWorkOperation::Add,
+            "[ ] third\n[ ] fourth".to_string(),
+        )
+        .expect("add items");
+        assert_eq!(items.len(), 4);
+
+        apply_list_field(
+            "proof_plan",
+            &mut items,
+            &SetWorkOperation::Remove,
+            "1".to_string(),
+        )
+        .expect("remove item");
+        assert_eq!(items[0], "[x] second");
     }
 }
 
