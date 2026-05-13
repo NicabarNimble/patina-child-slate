@@ -1,7 +1,7 @@
 id = "slate-lifecycle-activation-ux"
 title = "Clarify slate lifecycle transitions"
 kind = "build"
-status = "active"
+status = "complete"
 human_request = "Add explicit activate UX and clearer promotion/validation messaging"
 allium_anchors = [
   "layer/core/adapter-pattern.md",
@@ -16,17 +16,24 @@ allium_anchors = [
 user_alignment = "Makes draft/ready/active behavior obvious for external child users."
 belief_refs = []
 proof_plan = [
-  "[ ] A single explicit activation path exists (e.g. `activate` command).",
-  "[ ] Transition output clearly shows current and next states.",
-  "[ ] Validation failures report missing gates in actionable form.",
+  "[x] A single explicit activation path exists (`activate-work`).",
+  "[x] Transition history events clearly show current and next states via from/to payload.",
+  "[x] Validation failures report missing gates in actionable form.",
 ]
-closure_evidence = []
+closure_evidence = [
+  "Added `activate-work` to WIT contract, child manifest allowlist, and SlateManager implementation.",
+  "Added transition helper so promote/activate events record `from`, `to`, and `force` payloads.",
+  "Improved ready-gate validation to list missing gates with fix-oriented hints.",
+  "Added tests for activation transition history and actionable missing-gate errors.",
+  "Verified with cargo fmt --check, cargo clippy --all-targets --all-features -- -D warnings, cargo test --all-targets, and cargo component build --release.",
+]
 blocked_by = []
 target = "3"
 implementation_plan = [
   "Add explicit lifecycle transition affordances in command/API surface.",
   "Improve transition and gate diagnostics for users.",
 ]
-belief_harvest_decision = "pending"
+belief_harvest_decision = "no new belief; reinforced explicit lifecycle commands and actionable gates as command-surface values"
 created_at = "1778624325"
-updated_at = "1778685333"
+updated_at = "1778685764"
+closed_at = "1778685764"
