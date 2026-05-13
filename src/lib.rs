@@ -3609,6 +3609,56 @@ mod slate_native_tests {
         .expect("remove item");
         assert_eq!(items[0], "[x] second");
     }
+
+    #[test]
+    fn native_slate_set_work_api_updates_human_request_and_allium_anchors() {
+        let temp = temp_project();
+        let mut work = SlateWorkFile {
+            id: "demo".to_string(),
+            title: "Demo".to_string(),
+            kind: "build".to_string(),
+            status: "draft".to_string(),
+            human_request: "Initial".to_string(),
+            user_alignment: "User confirmed".to_string(),
+            ..Default::default()
+        };
+        create_slate_work_file(temp.path(), &mut work).expect("create work");
+        let project = Some(temp.path().to_string_lossy().to_string());
+
+        let updated = <SlateManager as exports::patina::slate::control::Guest>::set_work(
+            exports::patina::slate::control::SetWorkRequest {
+                project: project.clone(),
+                id: "demo".to_string(),
+                field: "human-request:set".to_string(),
+                value: "Updated request".to_string(),
+            },
+        )
+        .expect("set human request");
+        assert_eq!(updated.human_request, "Updated request");
+
+        let updated = <SlateManager as exports::patina::slate::control::Guest>::set_work(
+            exports::patina::slate::control::SetWorkRequest {
+                project: project.clone(),
+                id: "demo".to_string(),
+                field: "allium_anchors:set".to_string(),
+                value: "[\"layer/core/spec-driven-design.md\",\"layer/core/unix-philosophy.md\"]"
+                    .to_string(),
+            },
+        )
+        .expect("set allium anchors");
+        assert_eq!(updated.allium_anchors.len(), 2);
+
+        let updated = <SlateManager as exports::patina::slate::control::Guest>::set_work(
+            exports::patina::slate::control::SetWorkRequest {
+                project,
+                id: "demo".to_string(),
+                field: "proof_plan:set".to_string(),
+                value: "[ ] first\n[ ] second".to_string(),
+            },
+        )
+        .expect("replace proof plan");
+        assert_eq!(updated.proof_plan.len(), 2);
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
