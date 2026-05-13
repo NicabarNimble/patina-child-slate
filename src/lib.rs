@@ -110,13 +110,25 @@ struct SlateWorkFile {
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 struct SlateReleaseContract {
     #[serde(default)]
-    bump_type: Option<String>,
-    #[serde(default)]
-    version_files: Vec<String>,
+    release_tag: Option<String>,
     #[serde(default)]
     changelog_updated: bool,
     #[serde(default)]
-    release_tag: Option<String>,
+    units: Vec<SlateReleaseUnit>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+struct SlateReleaseUnit {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    ecosystem: String,
+    #[serde(default)]
+    version_strategy: String,
+    #[serde(default)]
+    bump_type: Option<String>,
+    #[serde(default)]
+    version_files: Vec<String>,
     #[serde(default)]
     artifact_build_command: Option<String>,
     #[serde(default)]
@@ -1076,12 +1088,81 @@ fn apply_list_field(
     }
 }
 
+fn valid_release_ecosystems() -> &'static [&'static str] {
+    &[
+        "rust",
+        "node",
+        "typescript",
+        "go",
+        "java",
+        "clojure",
+        "c",
+        "custom",
+    ]
+}
+
+fn valid_release_version_strategies() -> &'static [&'static str] {
+    &[
+        "cargo",
+        "npm",
+        "pnpm",
+        "yarn",
+        "bun",
+        "go-module",
+        "maven",
+        "gradle",
+        "deps-edn",
+        "lein",
+        "make",
+        "cmake",
+        "custom",
+    ]
+}
+
 fn validate_release_contract(contract: &SlateReleaseContract) -> Result<(), String> {
-    if let Some(bump) = contract.bump_type.as_deref() {
-        if !matches!(bump, "patch" | "minor" | "major") {
+    if contract.units.is_empty() {
+        return Err("release_contract.units must contain at least one release unit".to_string());
+    }
+
+    let ecosystems = valid_release_ecosystems();
+    let strategies = valid_release_version_strategies();
+    for (idx, unit) in contract.units.iter().enumerate() {
+        let label = if unit.name.trim().is_empty() {
+            format!("unit[{}]", idx)
+        } else {
+            format!("unit '{}'", unit.name)
+        };
+        if unit.name.trim().is_empty() {
+            return Err(format!("release_contract {} requires name", label));
+        }
+        if !ecosystems.contains(&unit.ecosystem.as_str()) {
             return Err(format!(
-                "invalid release_contract.bump_type '{}': expected patch, minor, or major",
-                bump
+                "release_contract {} has unsupported ecosystem '{}'. Valid ecosystems: {}",
+                label,
+                unit.ecosystem,
+                ecosystems.join(", ")
+            ));
+        }
+        if !strategies.contains(&unit.version_strategy.as_str()) {
+            return Err(format!(
+                "release_contract {} has unsupported version_strategy '{}'. Valid strategies: {}",
+                label,
+                unit.version_strategy,
+                strategies.join(", ")
+            ));
+        }
+        if let Some(bump) = unit.bump_type.as_deref() {
+            if !matches!(bump, "patch" | "minor" | "major") {
+                return Err(format!(
+                    "release_contract {} has invalid bump_type '{}': expected patch, minor, or major",
+                    label, bump
+                ));
+            }
+        }
+        if unit.version_files.is_empty() && unit.version_strategy != "custom" {
+            return Err(format!(
+                "release_contract {} requires version_files unless version_strategy is custom",
+                label
             ));
         }
     }
@@ -1091,7 +1172,7 @@ fn validate_release_contract(contract: &SlateReleaseContract) -> Result<(), Stri
 fn parse_release_contract(value: &str) -> Result<SlateReleaseContract, String> {
     let contract: SlateReleaseContract = serde_json::from_str(value).map_err(|error| {
         format!(
-            "invalid release_contract JSON: {}. Expected object with optional bump_type, version_files, changelog_updated, release_tag, artifact_build_command, verification",
+            "invalid release_contract JSON: {}. Expected object with release_tag, changelog_updated, and units [{{name, ecosystem, version_strategy, bump_type, version_files, artifact_build_command, verification}}]",
             error
         )
     })?;
@@ -1123,14 +1204,56 @@ fn apply_release_contract_field(
 fn release_contract_schema() -> serde_json::Value {
     serde_json::json!({
         "ownership": "Slate records the release contract; project/tooling owns language-specific version mutation, build, tag, and publishing mechanics.",
-        "fields": {
-            "bump_type": "optional patch|minor|major",
-            "version_files": "list of project-owned version metadata files (Cargo.toml, package.json, pom.xml, deps.edn, etc.)",
-            "changelog_updated": "bool evidence that release notes/changelog were updated",
+        "shape": {
             "release_tag": "optional intended release tag such as v0.2.0",
-            "artifact_build_command": "optional project-owned build command proving artifacts",
-            "verification": "list of commands/evidence checked before release",
-        }
+            "changelog_updated": "bool evidence that release notes/changelog were updated",
+            "units": [
+                {
+                    "name": "release unit name, package, service, crate, module, app, or component",
+                    "ecosystem": valid_release_ecosystems(),
+                    "version_strategy": valid_release_version_strategies(),
+                    "bump_type": "optional patch|minor|major",
+                    "version_files": "list of project-owned version metadata files for this unit",
+                    "artifact_build_command": "optional project-owned build command proving artifacts for this unit",
+                    "verification": "list of unit-specific commands/evidence checked before release",
+                }
+            ]
+        },
+        "examples": [
+            {
+                "release_tag": "v0.2.0",
+                "changelog_updated": true,
+                "units": [
+                    {
+                        "name": "slate-manager",
+                        "ecosystem": "rust",
+                        "version_strategy": "cargo",
+                        "bump_type": "minor",
+                        "version_files": ["Cargo.toml"],
+                        "artifact_build_command": "cargo component build --release",
+                        "verification": ["cargo test --all-targets"],
+                    },
+                    {
+                        "name": "web-client",
+                        "ecosystem": "typescript",
+                        "version_strategy": "pnpm",
+                        "bump_type": "minor",
+                        "version_files": ["package.json"],
+                        "artifact_build_command": "pnpm build",
+                        "verification": ["pnpm test"],
+                    },
+                    {
+                        "name": "worker",
+                        "ecosystem": "go",
+                        "version_strategy": "go-module",
+                        "bump_type": "patch",
+                        "version_files": ["go.mod"],
+                        "artifact_build_command": "go build ./...",
+                        "verification": ["go test ./..."],
+                    }
+                ]
+            }
+        ]
     })
 }
 
@@ -3894,12 +4017,14 @@ mod slate_native_tests {
             .and_then(|value| value.as_str())
             .expect("ownership")
             .contains("project/tooling owns language-specific"));
-        assert!(release_contract
-            .get("fields")
-            .and_then(|value| value.get("version_files"))
-            .and_then(|value| value.as_str())
-            .expect("version_files")
-            .contains("package.json"));
+        let examples = release_contract
+            .get("examples")
+            .and_then(|value| value.as_array())
+            .expect("examples");
+        let example_text = examples[0].to_string();
+        assert!(example_text.contains("typescript"));
+        assert!(example_text.contains("go-module"));
+        assert!(example_text.contains("cargo"));
     }
 
     #[test]
@@ -3918,12 +4043,37 @@ mod slate_native_tests {
         let project = Some(temp.path().to_string_lossy().to_string());
 
         let contract = serde_json::json!({
-            "bump_type": "minor",
-            "version_files": ["Cargo.toml", "package.json"],
             "changelog_updated": true,
             "release_tag": "v0.2.0",
-            "artifact_build_command": "cargo component build --release",
-            "verification": ["cargo test --all-targets"]
+            "units": [
+                {
+                    "name": "slate-manager",
+                    "ecosystem": "rust",
+                    "version_strategy": "cargo",
+                    "bump_type": "minor",
+                    "version_files": ["Cargo.toml"],
+                    "artifact_build_command": "cargo component build --release",
+                    "verification": ["cargo test --all-targets"]
+                },
+                {
+                    "name": "web-client",
+                    "ecosystem": "typescript",
+                    "version_strategy": "pnpm",
+                    "bump_type": "minor",
+                    "version_files": ["package.json"],
+                    "artifact_build_command": "pnpm build",
+                    "verification": ["pnpm test"]
+                },
+                {
+                    "name": "worker",
+                    "ecosystem": "go",
+                    "version_strategy": "go-module",
+                    "bump_type": "patch",
+                    "version_files": ["go.mod"],
+                    "artifact_build_command": "go build ./...",
+                    "verification": ["go test ./..."]
+                }
+            ]
         });
         let updated = <SlateManager as exports::patina::slate::control::Guest>::set_work(
             exports::patina::slate::control::SetWorkRequest {
@@ -3937,6 +4087,7 @@ mod slate_native_tests {
         let release_contract_json = updated.release_contract_json.expect("contract json");
         assert!(release_contract_json.contains("Cargo.toml"));
         assert!(release_contract_json.contains("package.json"));
+        assert!(release_contract_json.contains("go.mod"));
 
         let updated = <SlateManager as exports::patina::slate::control::Guest>::set_work(
             exports::patina::slate::control::SetWorkRequest {
@@ -3948,6 +4099,22 @@ mod slate_native_tests {
         )
         .expect("remove release contract");
         assert!(updated.release_contract_json.is_none());
+    }
+
+    #[test]
+    fn native_slate_release_contract_rejects_unknown_ecosystem() {
+        let err = parse_release_contract(
+            &serde_json::json!({
+                "units": [{
+                    "name": "mystery",
+                    "ecosystem": "unknown-lang",
+                    "version_strategy": "custom"
+                }]
+            })
+            .to_string(),
+        )
+        .expect_err("unknown ecosystem should fail");
+        assert!(err.contains("unsupported ecosystem"));
     }
 }
 
