@@ -1,0 +1,32 @@
+id = "slate-generic-release-contract"
+title = "Add generic slate release contract"
+kind = "build"
+status = "active"
+human_request = "Make Slate expose a language-agnostic release contract while project/tooling owns version mechanics."
+allium_anchors = [
+  "layer/core/adapter-pattern.md",
+  "layer/core/dependable-rust.md",
+  "layer/core/oxidized-knowledge.md",
+  "layer/core/safety-boundaries.md",
+  "layer/core/session-capture.md",
+  "layer/core/spec-driven-design.md",
+  "layer/core/unix-philosophy.md",
+]
+user_alignment = "Matches the user's request to make the generic release model live without hard-coding Rust-only version mechanics."
+belief_refs = []
+proof_plan = [
+  "[ ] Slate work records can carry a generic release contract.",
+  "[ ] The schema exposes release contract fields without language-specific version mechanics.",
+  "[ ] Tests prove release contract parsing and set/remove behavior.",
+]
+closure_evidence = []
+blocked_by = []
+target = "4"
+implementation_plan = [
+  "Add a serializable release contract to Slate work artifacts and WorkRecord output.",
+  "Expose contract shape in schema and allow set/remove through set-work.",
+  "Keep mutation/build/tag mechanics project-owned and language-agnostic.",
+]
+belief_harvest_decision = "pending"
+created_at = "1778687504"
+updated_at = "1778687504"
