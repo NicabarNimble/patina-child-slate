@@ -6,11 +6,22 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-12
+
 ### Added
 - Tiered CI model across local pre-commit, push, and PR-to-main stages.
 - Local git hook installer and Tier 0 pre-commit checks (`fmt` + `clippy`).
 - Tag-driven release workflow that publishes wasm + sha256 artifacts.
+- Slate schema/discoverability surface for mutable fields and lifecycle gates.
+- First-class `set-work` editing operations: set/add/remove/update.
+- Editable `human_request`, `allium_anchors`, and `release_contract` fields through Slate APIs.
+- Explicit `activate-work` lifecycle transition.
+- Generic, ecosystem-aware release contract with monorepo release units.
 - Initial Slate work tracking entries under `layer/slate/work/`.
+
+### Changed
+- Ready-gate validation now returns actionable missing-gate details.
+- Slate archive/recovery tags were created for completed work items.
 
 ## [0.1.0] - 2026-05-12
 
