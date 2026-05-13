@@ -692,25 +692,116 @@ fn update_slate_work(
     Ok(saved)
 }
 
-fn validate_ready_gate(work: &SlateWorkFile) -> Result<(), String> {
+fn ready_gate_failures(work: &SlateWorkFile) -> Vec<String> {
+    let mut failures = Vec::new();
+    if work.kind.trim().is_empty() {
+        failures.push("kind is empty; set `kind` to build, fix, or refactor".to_string());
+    }
+    if work.human_request.trim().is_empty() {
+        failures.push(
+            "human_request is empty; set `human_request:set` to the user's request".to_string(),
+        );
+    }
+    if work.user_alignment.trim().is_empty() {
+        failures.push(
+            "user_alignment is empty; set `user_alignment:set` to why this matches the request"
+                .to_string(),
+        );
+    }
+    if work.proof_plan.is_empty() {
+        failures
+            .push("proof_plan is empty; add a checkable item with `proof_plan:add`".to_string());
+    }
+
     let allium_ok = !work.allium_anchors.is_empty()
         || (work.kind == "refactor"
             && work
                 .user_alignment
                 .to_ascii_lowercase()
                 .contains("no behavior"));
-    if work.kind.is_empty()
-        || work.human_request.trim().is_empty()
-        || work.user_alignment.trim().is_empty()
-        || work.proof_plan.is_empty()
-        || !allium_ok
-    {
+    if !allium_ok {
+        failures.push("Allium/allium_anchors is empty; add an anchor with `allium_anchors:add`, or for a refactor include a no-behavior-change rationale in user_alignment".to_string());
+    }
+
+    failures
+}
+
+fn validate_ready_gate(work: &SlateWorkFile) -> Result<(), String> {
+    let failures = ready_gate_failures(work);
+    if !failures.is_empty() {
         return Err(format!(
-            "Slate work '{}' is not ready: require kind, human request, Allium anchors or no-behavior-change rationale, user alignment, and proof plan",
-            work.id
+            "Slate work '{}' is not ready. Missing gates:\n- {}",
+            work.id,
+            failures.join("\n- ")
         ));
     }
     Ok(())
+}
+
+fn transition_slate_work(
+    root: &Path,
+    id: &str,
+    event_type: &str,
+    force: bool,
+    transition: impl FnOnce(&mut SlateWorkFile) -> Result<String, String>,
+) -> Result<SlateWorkRecord, String> {
+    let mut records = load_slate_work(root)?;
+    let mut record = find_slate_work(&records, id)?.clone();
+    let from = record.work.status.clone();
+    let to = transition(&mut record.work)?;
+    let saved = write_slate_work_file(root, &mut record.work)?;
+    append_slate_event(
+        root,
+        &saved.work.id,
+        event_type,
+        serde_json::json!({"from": from, "to": to, "force": force}),
+    )?;
+    records.clear();
+    Ok(saved)
+}
+
+fn promote_slate_work(root: &Path, id: &str, force: bool) -> Result<SlateWorkRecord, String> {
+    transition_slate_work(root, id, "promoted", force, |work| {
+        let to = match work.status.as_str() {
+            "draft" => {
+                if !force {
+                    validate_ready_gate(work)?;
+                }
+                "ready"
+            }
+            "ready" => "active",
+            other => {
+                return Err(format!(
+                    "cannot promote Slate work '{}' from status '{}'. Valid promotions: draft -> ready, ready -> active. Use activate-work for a single explicit activation path.",
+                    work.id, other
+                ))
+            }
+        };
+        work.status = to.to_string();
+        Ok(to.to_string())
+    })
+}
+
+fn activate_slate_work(root: &Path, id: &str, force: bool) -> Result<SlateWorkRecord, String> {
+    transition_slate_work(root, id, "activated", force, |work| {
+        match work.status.as_str() {
+            "draft" | "ready" => {
+                if !force && work.status == "draft" {
+                    validate_ready_gate(work)?;
+                }
+                work.status = "active".to_string();
+                Ok("active".to_string())
+            }
+            "active" => Err(format!(
+                "Slate work '{}' is already active; no activation needed",
+                work.id
+            )),
+            other => Err(format!(
+                "cannot activate Slate work '{}' from status '{}'. Valid activation statuses: draft or ready",
+                work.id, other
+            )),
+        }
+    })
 }
 
 fn set_work_field_schema() -> Vec<serde_json::Value> {
@@ -993,6 +1084,16 @@ fn handle_schema() -> serde_json::Value {
                     "to": "active",
                     "command": "promote-work",
                     "gates": ["none"],
+                },
+                {
+                    "from": "draft|ready",
+                    "to": "active",
+                    "command": "activate-work",
+                    "gates": [
+                        "draft uses the same ready gates as promote-work",
+                        "ready has no additional gates",
+                        "history event payload records from/to/force",
+                    ],
                 },
                 {
                     "from": "active",
@@ -2576,31 +2677,16 @@ impl exports::patina::slate::control::Guest for SlateManager {
     ) -> Result<exports::patina::slate::control::WorkRecord, String> {
         let project_root = resolve_project_root_from_hint(req.project.as_deref())?;
         with_project_root_cwd(&project_root, || {
-            update_slate_work(
-                &project_root,
-                &req.id,
-                "promoted",
-                serde_json::json!({"force": req.force}),
-                |work| {
-                    match work.status.as_str() {
-                        "draft" => {
-                            if !req.force {
-                                validate_ready_gate(work)?;
-                            }
-                            work.status = "ready".to_string();
-                        }
-                        "ready" => work.status = "active".to_string(),
-                        other => {
-                            return Err(format!(
-                                "cannot promote Slate work '{}' from status '{}'",
-                                work.id, other
-                            ))
-                        }
-                    }
-                    Ok(())
-                },
-            )
-            .map(slate_work_record)
+            promote_slate_work(&project_root, &req.id, req.force).map(slate_work_record)
+        })
+    }
+
+    fn activate_work(
+        req: exports::patina::slate::control::WorkStatusRequest,
+    ) -> Result<exports::patina::slate::control::WorkRecord, String> {
+        let project_root = resolve_project_root_from_hint(req.project.as_deref())?;
+        with_project_root_cwd(&project_root, || {
+            activate_slate_work(&project_root, &req.id, req.force).map(slate_work_record)
         })
     }
 
@@ -3658,6 +3744,49 @@ mod slate_native_tests {
         )
         .expect("replace proof plan");
         assert_eq!(updated.proof_plan.len(), 2);
+    }
+
+    #[test]
+    fn native_slate_activate_work_is_single_explicit_transition() {
+        let temp = temp_project();
+        let mut work = SlateWorkFile {
+            id: "demo".to_string(),
+            title: "Demo".to_string(),
+            kind: "build".to_string(),
+            status: "draft".to_string(),
+            human_request: "Build it".to_string(),
+            allium_anchors: vec!["layer/core/spec-driven-design.md".to_string()],
+            user_alignment: "User confirmed".to_string(),
+            proof_plan: vec!["[ ] cargo test".to_string()],
+            ..Default::default()
+        };
+        create_slate_work_file(temp.path(), &mut work).expect("create work");
+
+        let activated = activate_slate_work(temp.path(), "demo", false).expect("activate");
+        assert_eq!(activated.work.status, "active");
+
+        let events = load_slate_events(temp.path(), "demo").expect("events");
+        let payload = events
+            .last()
+            .and_then(|event| event.get("payload"))
+            .expect("activation payload");
+        assert_eq!(payload.get("from").and_then(|v| v.as_str()), Some("draft"));
+        assert_eq!(payload.get("to").and_then(|v| v.as_str()), Some("active"));
+    }
+
+    #[test]
+    fn native_slate_ready_gate_errors_list_missing_gates() {
+        let work = SlateWorkFile {
+            id: "demo".to_string(),
+            title: "Demo".to_string(),
+            kind: "build".to_string(),
+            ..Default::default()
+        };
+        let err = validate_ready_gate(&work).expect_err("missing gates");
+        assert!(err.contains("Missing gates:"));
+        assert!(err.contains("human_request"));
+        assert!(err.contains("proof_plan"));
+        assert!(err.contains("allium_anchors"));
     }
 }
 

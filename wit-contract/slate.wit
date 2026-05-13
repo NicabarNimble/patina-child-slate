@@ -340,6 +340,7 @@ interface control {
     create-work: func(req: create-work-request) -> result<work-record, string>;
     set-work: func(req: set-work-request) -> result<work-record, string>;
     promote-work: func(req: work-status-request) -> result<work-record, string>;
+    activate-work: func(req: work-status-request) -> result<work-record, string>;
     check-work: func(req: work-id-request) -> result<work-check-result, string>;
     pause-work: func(req: pause-work-request) -> result<work-record, string>;
     resume-work: func(req: work-status-request) -> result<work-record, string>;

@@ -21,6 +21,7 @@ allow = [
   "patina:slate/control@0.1.0.create-work",
   "patina:slate/control@0.1.0.set-work",
   "patina:slate/control@0.1.0.promote-work",
+  "patina:slate/control@0.1.0.activate-work",
   "patina:slate/control@0.1.0.check-work",
   "patina:slate/control@0.1.0.pause-work",
   "patina:slate/control@0.1.0.resume-work",
