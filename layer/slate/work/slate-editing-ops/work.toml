@@ -1,9 +1,18 @@
 id = "slate-editing-ops"
 title = "Add first-class slate edit operations"
 kind = "build"
-status = "draft"
+status = "active"
 human_request = "Support set/add/remove semantics and structured list editing for slate work fields"
-allium_anchors = ["layer/surface/slate-manager-work-commit-list.md"]
+allium_anchors = [
+  "layer/core/adapter-pattern.md",
+  "layer/core/dependable-rust.md",
+  "layer/core/oxidized-knowledge.md",
+  "layer/core/safety-boundaries.md",
+  "layer/core/session-capture.md",
+  "layer/core/spec-driven-design.md",
+  "layer/core/unix-philosophy.md",
+  "layer/surface/slate-manager-work-commit-list.md",
+]
 user_alignment = "Reduces manual TOML edits and duplicate checklist blobs during normal slate workflows."
 belief_refs = []
 proof_plan = [
@@ -12,7 +21,7 @@ proof_plan = [
   "[ ] List updates are item-level (no accidental duplicate blob appends).",
 ]
 closure_evidence = []
-blocked_by = ["slate-surface-schema"]
+blocked_by = []
 target = "2"
 implementation_plan = [
   "Define a clear edit contract for scalar and list fields.",
@@ -20,4 +29,4 @@ implementation_plan = [
 ]
 belief_harvest_decision = "pending"
 created_at = "1778624325"
-updated_at = "1778624325"
+updated_at = "1778669181"
