@@ -43,7 +43,7 @@ scripts/install-hooks.sh
 
 - This repo follows SemVer.
 - Tag releases as `vX.Y.Z`.
-- Tag pushes trigger release asset publishing (`.wasm` + `.sha256`).
+- Tag pushes trigger Mother registry release asset publishing (`.wasm`, `child.toml`, sidecar hashes, and `checksums.txt`).
 - See [`RELEASING.md`](RELEASING.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Install into Patina

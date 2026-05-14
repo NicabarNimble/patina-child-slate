@@ -30,13 +30,22 @@ jobs:
       - name: Build release component
         run: cargo component build --release
 
-      - name: Compute checksum
+      - name: Prepare registry release assets
         run: |
-          sha256sum target/wasm32-wasip1/release/patina_ai_child_slate_manager.wasm > target/wasm32-wasip1/release/patina_ai_child_slate_manager.wasm.sha256
+          mkdir -p target/patina-release
+          cp target/wasm32-wasip1/release/patina_ai_child_slate_manager.wasm target/patina-release/
+          cp child.toml target/patina-release/child.toml
+          cd target/patina-release
+          sha256sum patina_ai_child_slate_manager.wasm > patina_ai_child_slate_manager.wasm.sha256
+          sha256sum child.toml > child.toml.sha256
+          sha256sum patina_ai_child_slate_manager.wasm child.toml > checksums.txt
 
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            target/wasm32-wasip1/release/patina_ai_child_slate_manager.wasm
-            target/wasm32-wasip1/release/patina_ai_child_slate_manager.wasm.sha256
+            target/patina-release/patina_ai_child_slate_manager.wasm
+            target/patina-release/patina_ai_child_slate_manager.wasm.sha256
+            target/patina-release/child.toml
+            target/patina-release/child.toml.sha256
+            target/patina-release/checksums.txt
